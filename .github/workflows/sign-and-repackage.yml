@@ -1,0 +1,65 @@
+name: Sign and Repackage ZIP
+
+on:
+  workflow_dispatch:  # 手動トリガーのみ（テスト用）
+    inputs:
+      zip_file:
+        description: 'ZIP filename in unsign/ (e.g., 20260105_text.zip)'
+        required: false
+        type: string
+
+jobs:
+  process:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'  # UTF-8デフォルト対応必須
+
+      - name: Verify Python version
+        run: |
+          python --version
+          python -c "import sys; assert sys.version_info >= (3, 11), 'Python 3.11+ required for UTF-8 ZIP support'"
+
+      - name: Process ZIP files
+        run: |
+          if [ -n "${{ inputs.zip_file }}" ]; then
+            # 特定のZIPファイルを処理
+            echo "Processing specific file: ${{ inputs.zip_file }}"
+            python scripts/process_zip.py "unsign/${{ inputs.zip_file }}" signed/
+          else
+            # unsign/ 内の全ZIPファイルを処理
+            echo "Processing all ZIP files in unsign/"
+            python scripts/process_zip.py unsign/ signed/
+          fi
+
+      - name: List processed files
+        run: |
+          echo "📦 Processed files in signed/:"
+          ls -lh signed/ || echo "No files generated"
+
+      - name: Commit and push signed files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add signed/
+
+          # 変更がある場合のみコミット
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add signed and repackaged ZIP [skip ci]"
+            git push
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-zips
+          path: signed/*.zip
+          retention-days: 30
