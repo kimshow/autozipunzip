@@ -38,14 +38,12 @@ def safe_extract(zip_path: Path, extract_to: Path) -> None:
     print(f"📦 Extracting: {zip_path.name}")
     print(f"   → {extract_to}")
 
-    with zipfile.ZipFile(zip_path, 'r') as zf:
+    with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
             # パストラバーサル対策
             member_path = (extract_to / member).resolve()
             if not str(member_path).startswith(str(extract_to)):
-                raise ValueError(
-                    f"Path traversal detected: {member} -> {member_path}"
-                )
+                raise ValueError(f"Path traversal detected: {member} -> {member_path}")
 
             # 解凍実行
             zf.extract(member, extract_to)
@@ -54,11 +52,7 @@ def safe_extract(zip_path: Path, extract_to: Path) -> None:
     print(f"   ✅ Extracted {len(zf.namelist())} files\n")
 
 
-def compress_directory(
-    source_dir: Path,
-    output_zip: Path,
-    base_path: Optional[Path] = None
-) -> None:
+def compress_directory(source_dir: Path, output_zip: Path, base_path: Optional[Path] = None) -> None:
     """
     ディレクトリを再帰的にZIP圧縮（UTF-8エンコーディング、Windows互換）
 
@@ -84,26 +78,26 @@ def compress_directory(
 
     file_count = 0
 
-    # シンプルで確実なZIP作成（Python 3.11+のデフォルトUTF-8を使用）
+    # Windows互換性最優先：ディレクトリエントリなしでファイルのみ追加
+    # ファイルパスから自動的にディレクトリ構造が復元される
     with zipfile.ZipFile(
-        output_zip,
-        'w',
-        compression=zipfile.ZIP_DEFLATED,
-        allowZip64=True  # 大きなファイル対応
+        output_zip, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True  # 大きなファイル対応
     ) as zf:
-        # ディレクトリを再帰的に走査
+        # ファイルのみ追加（UTF-8フラグ付き）
         for root, dirs, files in os.walk(source_dir):
-            # ファイルのみ追加（ディレクトリ構造は自動作成される）
             for file in files:
                 file_path = Path(root) / file
-                
-                # 相対パスを計算し、POSIX形式（/区切り）に変換
-                # これによりWindowsでも正しく開ける
                 arcname = file_path.relative_to(base_path).as_posix()
-                
-                # シンプルなwrite()メソッドを使用（最も互換性が高い）
-                zf.write(file_path, arcname=arcname)
-                
+
+                # ZipInfoを使ってUTF-8フラグを明示的に設定
+                zip_info = zipfile.ZipInfo.from_file(file_path, arcname)
+                zip_info.compress_type = zipfile.ZIP_DEFLATED
+                zip_info.flag_bits |= 0x800  # UTF-8フラグを強制設定
+
+                # ファイル内容を読み込んで追加
+                with open(file_path, "rb") as f:
+                    zf.writestr(zip_info, f.read(), compress_type=zipfile.ZIP_DEFLATED)
+
                 print(f"   ✓ {arcname}")
                 file_count += 1
 
@@ -121,11 +115,7 @@ def add_signature_marker(target_dir: Path, marker_filename: str = "署名済み.
         marker_filename: マーカーファイル名
     """
     marker_file = target_dir / marker_filename
-    marker_file.write_text(
-        f"このフレームワークは署名済みです\n"
-        f"Signed at: {marker_file}\n",
-        encoding='utf-8'
-    )
+    marker_file.write_text(f"このフレームワークは署名済みです\n" f"Signed at: {marker_file}\n", encoding="utf-8")
     print(f"   ✓ Added signature marker: {marker_filename}")
 
 
@@ -137,7 +127,7 @@ def list_zip_contents(zip_path: Path) -> None:
         zip_path: 表示するZIPファイル
     """
     print(f"\n📋 Contents of {zip_path.name}:")
-    with zipfile.ZipFile(zip_path, 'r') as zf:
+    with zipfile.ZipFile(zip_path, "r") as zf:
         for info in zf.infolist():
             size_kb = info.file_size / 1024
             print(f"   {info.filename:60} ({size_kb:>8.1f} KB)")
