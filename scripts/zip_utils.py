@@ -84,7 +84,7 @@ def compress_directory(
 
     file_count = 0
 
-    # Windows互換性を最大化するためのZIP作成
+    # シンプルで確実なZIP作成（Python 3.11+のデフォルトUTF-8を使用）
     with zipfile.ZipFile(
         output_zip,
         'w',
@@ -93,17 +93,7 @@ def compress_directory(
     ) as zf:
         # ディレクトリを再帰的に走査
         for root, dirs, files in os.walk(source_dir):
-            # ディレクトリエントリを明示的に追加（Windows互換性向上）
-            for dir_name in dirs:
-                dir_path = Path(root) / dir_name
-                arcname = dir_path.relative_to(base_path).as_posix() + '/'
-                
-                # 空のディレクトリエントリを作成
-                zip_info = zipfile.ZipInfo(arcname)
-                zip_info.external_attr = 0o755 << 16 | 0x10  # ディレクトリフラグ
-                zf.writestr(zip_info, b'')
-            
-            # ファイルを追加
+            # ファイルのみ追加（ディレクトリ構造は自動作成される）
             for file in files:
                 file_path = Path(root) / file
                 
@@ -111,15 +101,8 @@ def compress_directory(
                 # これによりWindowsでも正しく開ける
                 arcname = file_path.relative_to(base_path).as_posix()
                 
-                # ファイルメタデータを保持してZIPに追加
-                zip_info = zipfile.ZipInfo.from_file(file_path, arcname)
-                
-                # 圧縮設定
-                zip_info.compress_type = zipfile.ZIP_DEFLATED
-                
-                # ファイル内容を読み込んで追加
-                with open(file_path, 'rb') as f:
-                    zf.writestr(zip_info, f.read())
+                # シンプルなwrite()メソッドを使用（最も互換性が高い）
+                zf.write(file_path, arcname=arcname)
                 
                 print(f"   ✓ {arcname}")
                 file_count += 1
