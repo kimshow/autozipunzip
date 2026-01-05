@@ -103,9 +103,46 @@ arcname = file_path.relative_to(base).as_posix()
 
 ### Windows環境での確認方法
 
-1. GitHub Actionsで処理されたZIPをダウンロード
-2. Windows PCで解凍
-3. 日本語ファイル名が文字化けせず表示されることを確認
+**⚠️ 重要：GitHubの「Download ZIP」ではなく、`git clone`を使用してください**
+
+GitHubの「Code → Download ZIP」機能を使うと、バイナリファイルが正しく含まれない場合があります。
+
+#### 方法1: Git Clone（推奨）
+
+```powershell
+# リポジトリをクローン
+git clone https://github.com/kimshow/autozipunzip.git
+cd autozipunzip
+
+# ファイルが存在するか確認
+dir signed\20260105_test.zip
+
+# MD5確認（macOS側の値: 576d6df99faf2d36fc0dbcfd252cc439）
+CertUtil -hashfile signed\20260105_test.zip MD5
+
+# 解凍テスト
+Expand-Archive -Path "signed\20260105_test.zip" -DestinationPath "test_extract" -Force
+dir test_extract -Recurse
+```
+
+#### 方法2: 直接ダウンロード（Git不要）
+
+```powershell
+# PowerShellで直接ダウンロード
+Invoke-WebRequest -Uri "https://github.com/kimshow/autozipunzip/raw/main/signed/20260105_test.zip" -OutFile "test.zip"
+
+# MD5確認
+CertUtil -hashfile test.zip MD5
+
+# 解凍
+Expand-Archive -Path "test.zip" -DestinationPath "test_extract" -Force
+dir test_extract -Recurse
+```
+
+ブラウザで直接開く場合：
+```
+https://github.com/kimshow/autozipunzip/raw/main/signed/20260105_test.zip
+```
 
 ### macOSでの事前確認
 
@@ -115,9 +152,34 @@ unzip -l signed/YYYYMMDD_text.zip
 
 # 日本語ファイル名が含まれているか確認
 unzip -l signed/YYYYMMDD_text.zip | grep -E '[\x80-\xFF]'
+
+# ZIP整合性検証
+python3 tests/verify_zip_integrity.py signed/20260105_test.zip
+
+# UTF-8フラグ詳細診断
+python3 tests/diagnose_zip.py signed/20260105_test.zip
 ```
 
 ## 🛠️ トラブルシューティング
+
+### Windows: 「指定されたファイルが見つかりません」
+
+**原因**: GitHubの「Download ZIP」機能を使用した場合、テストZIPファイルが含まれていない可能性があります。
+
+**解決策**: 
+- `git clone`を使用する（上記「方法1」参照）
+- または直接ダウンロードURLを使用する（上記「方法2」参照）
+
+### Windows: 「フォルダーは空です」/ 7-Zip: 「有効なアーカイブではありません」
+
+**原因**: `.gitattributes`設定前に取得したリポジトリで、ZIPファイルの改行コードが変換されている可能性があります。
+
+**解決策**:
+```powershell
+# リポジトリを削除して再クローン
+Remove-Item -Recurse -Force autozipunzip
+git clone https://github.com/kimshow/autozipunzip.git
+```
 
 ### エラー: "Python 3.11+ required"
 
@@ -133,6 +195,7 @@ unzip -l signed/YYYYMMDD_text.zip | grep -E '[\x80-\xFF]'
 
 - `metadata_encoding='utf-8'` が使用されているか確認
 - Python 3.11以上で実行されているか確認
+- ZIP内のファイル名がUTF-8フラグ（0x800）付きで保存されているか診断ツールで確認
 
 ## 📋 必要要件
 
