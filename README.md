@@ -107,17 +107,22 @@ arcname = file_path.relative_to(base).as_posix()
 
 GitHubの「Code → Download ZIP」機能を使うと、バイナリファイルが正しく含まれない場合があります。
 
-#### 方法1: Git Clone（推奨）
+#### 方法1: リポジトリ全体をダウンロード（推奨・企業環境向け）
+
+**企業のセキュリティポリシーでバイナリファイルの直接ダウンロードが制限されている場合、この方法を使用してください。**
+
+1. https://github.com/kimshow/autozipunzip にアクセス
+2. 緑の「Code」ボタン → 「Download ZIP」をクリック
+3. `autozipunzip-main.zip`をダウンロード
+4. ダウンロードしたZIPを解凍
+5. `autozipunzip-main\signed\20260105_test.zip`を使用
 
 ```powershell
-# リポジトリをクローン
-git clone https://github.com/kimshow/autozipunzip.git
-cd autozipunzip
-
-# ファイルが存在するか確認
+# 解凍後、以下で確認
+cd autozipunzip-main
 dir signed\20260105_test.zip
 
-# MD5確認（macOS側の値: 576d6df99faf2d36fc0dbcfd252cc439）
+# MD5確認（期待値: 576d6df99faf2d36fc0dbcfd252cc439）
 CertUtil -hashfile signed\20260105_test.zip MD5
 
 # 解凍テスト
@@ -125,23 +130,35 @@ Expand-Archive -Path "signed\20260105_test.zip" -DestinationPath "test_extract" 
 dir test_extract -Recurse
 ```
 
-#### 方法2: 直接ダウンロード（Git不要）
+#### 方法2: Git Clone（開発者向け）
+
+```powershell
+# Gitがインストールされている場合
+git clone https://github.com/kimshow/autozipunzip.git
+cd autozipunzip
+
+# プロキシ設定が必要な場合
+# git config --global http.proxy http://proxy.company.com:8080
+# git config --global https.proxy http://proxy.company.com:8080
+
+# ファイル確認
+dir signed\20260105_test.zip
+CertUtil -hashfile signed\20260105_test.zip MD5
+```
+
+#### 方法3: 直接ダウンロード（参考・企業環境では失敗する可能性あり）
+
+⚠️ **注意**: 企業のセキュリティポリシーにより、rawバイナリファイルの直接ダウンロードはブロックされる場合があります。失敗する場合は方法1を使用してください。
 
 ```powershell
 # PowerShellで直接ダウンロード
 Invoke-WebRequest -Uri "https://github.com/kimshow/autozipunzip/raw/main/signed/20260105_test.zip" -OutFile "test.zip"
 
-# MD5確認
+# プロキシ設定が必要な場合
+# $proxy = [System.Net.WebProxy]::new('http://proxy.company.com:8080')
+# Invoke-WebRequest -Uri "..." -OutFile "test.zip" -Proxy $proxy
+
 CertUtil -hashfile test.zip MD5
-
-# 解凍
-Expand-Archive -Path "test.zip" -DestinationPath "test_extract" -Force
-dir test_extract -Recurse
-```
-
-ブラウザで直接開く場合：
-```
-https://github.com/kimshow/autozipunzip/raw/main/signed/20260105_test.zip
 ```
 
 ### macOSでの事前確認
@@ -164,11 +181,11 @@ python3 tests/diagnose_zip.py signed/20260105_test.zip
 
 ### Windows: 「指定されたファイルが見つかりません」
 
-**原因**: GitHubの「Download ZIP」機能を使用した場合、テストZIPファイルが含まれていない可能性があります。
+**原因**: raw URLからの直接ダウンロードが企業のセキュリティポリシーによりブロックされている可能性があります。
 
 **解決策**: 
-- `git clone`を使用する（上記「方法1」参照）
-- または直接ダウンロードURLを使用する（上記「方法2」参照）
+- **推奨**: GitHubの「Code → Download ZIP」でリポジトリ全体をダウンロード（上記「方法1」参照）
+- または`git clone`を使用（プロキシ設定が必要な場合あり）
 
 ### Windows: 「フォルダーは空です」/ 7-Zip: 「有効なアーカイブではありません」
 
